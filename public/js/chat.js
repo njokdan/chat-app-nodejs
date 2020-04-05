@@ -10,21 +10,53 @@ const $messages = document.querySelector("#messages");
 //Templates
 const messageTemplate = document.querySelector("#message-template").innerHTML;
 const locationTemplate = document.querySelector("#location-template").innerHTML;
+const sidebarTemplate = document.querySelector("#sidebar-template").innerHTML;
+
+//Options
+const { username, room } = Qs.parse(location.search, {
+  ignoreQueryPrefix: true
+});
+
+const autoscroll = () => {
+  const $newMessage = $messages.lastElementChild;
+
+  const newMessageStyles = getComputedStyle($newMessage);
+  const newMessageMargin = parseInt(newMessageStyles.marginBottom);
+  const newMessageHeight = $newMessage.offsetHeight + newMessageMargin;
+
+  const visibleHeight = $messages.offsetHeight;
+
+  const containerHeight = $messages.scrollHeight;
+
+  const scrollOffset = $messages.scrollTop + visibleHeight;
+
+  if (containerHeight - newMessageHeight <= scrollOffset) {
+    $messages.scrollTop = $messages.scrollHeight;
+  }
+};
 
 socket.on("message", msg => {
+  if (msg.text === "") {
+    return;
+  }
+
   const html = Mustache.render(messageTemplate, {
     message: msg.text,
+    username: msg.username,
     createdAt: moment(msg.createdAt).format("k:mm")
   });
   $messages.insertAdjacentHTML("beforeend", html);
 });
 
-socket.on("locationMessage", ({ location, createdAt }) => {
+socket.on("locationMessage", ({ location, createdAt, username }) => {
   const html = Mustache.render(locationTemplate, {
     location,
+    username,
     createdAt: moment(createdAt).format("k:mm")
   });
   $messages.insertAdjacentHTML("beforeend", html);
+
+  autoscroll();
 });
 
 $messageForm.addEventListener("submit", e => {
@@ -44,6 +76,8 @@ $messageForm.addEventListener("submit", e => {
     }
 
     console.log("the message was delivered.");
+
+    autoscroll();
   });
 });
 
@@ -66,4 +100,19 @@ $sendLocationButton.addEventListener("click", () => {
       }
     );
   });
+});
+
+socket.emit("join", { username, room }, error => {
+  if (error) {
+    alert(error);
+    location.href = "/";
+  }
+});
+
+socket.on("roomData", ({ room, users }) => {
+  const html = Mustache.render(sidebarTemplate, {
+    room,
+    users
+  });
+  document.querySelector("#sidebar").innerHTML = html;
 });
